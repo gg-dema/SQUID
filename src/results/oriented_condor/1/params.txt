@@ -1,0 +1,61 @@
+oriented_condor
+ 
+dataset_name = kuka 
+ results_path = results/oriented_condor/ 
+ multi_motion = False 
+ selected_primitives_ids = 1 
+ workspace_dimensions = 6 
+ saturate_out_of_boundaries_transitions = True 
+ dynamical_system_order = 1 
+ shaped_attractors_form = None 
+ n_attractors = 2 
+ latent_dynamic_system_type = multivariate 
+ adaptive_gains = True 
+ latent_gain_lower_limit = 0 
+ latent_gain_upper_limit = 0.0997 
+ latent_gain = 0.008 
+ latent_space_dim = 300 
+ neurons_hidden_layers = 300 
+ batch_size = 512 
+ batch_size_contrastive_norm = 0 
+ batch_size_orientation_loss = 0 
+ learning_rate = 0.0001 
+ weight_decay = 1e-06 
+ imitation_loss_weight = 1.0 
+ stabilization_loss_weight = 1.0 
+ boundary_loss_weight = 0.5 
+ goal_mapping_loss_weight = 0.08 
+ cycle_loss_weight = 0 
+ cycle_orientation_loss_weight = 0 
+ goal_mapping_decreasing_weight = 0.995 
+ imitation_window_size = 10 
+ stabilization_window_size = 5 
+ stabilization_loss = contrastive 
+ contrastive_margin = 0.0049 
+ contrastive_norm_margin = 0 
+ triplet_margin = 1e-08 
+ interpolation_sigma = 0.8 
+ train = True 
+ load_model = False 
+ max_iterations = 41000 
+ spline_sample_type = from data 
+ workspace_boundaries_type = from data 
+ workspace_boundaries = [[-2.  2.]
+ [-2.  2.]
+ [-2.  2.]
+ [-2.  2.]
+ [-2.  2.]
+ [-2.  2.]] 
+ trajectories_resample_length = 2000 
+ state_increment = 0.3 
+ save_evaluation = True 
+ evaluation_interval = 1000 
+ quanti_eval = True 
+ quali_eval = True 
+ diffeo_quanti_eval = False 
+ diffeo_quali_eval = False 
+ ignore_n_spurious = False 
+ density = 2 
+ simulated_trajectory_length = 3000 
+ evaluation_samples_length = 100 
+ show_plotly = True 

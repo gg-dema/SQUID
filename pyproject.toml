@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "squid"
+version = "0.1.0"
+description = ""
+authors = ["dema <gg.dema.rm.22@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8, <3.11"
+torch = "1.13.1"
+simple-parsing = "0.0.19.post1"
+numpy = "1.21.6"
+scipy = "1.7.3"
+scikit-learn = "1.3.2"
+similaritymeasures = "0.4.4"
+plotly = "5.18.0"
+tensorboard = "2.5.0"
+protobuf = "3.20"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,8 @@
+best_stat:
+iteration number: 1000
+chamfer distance:
+[ 48996.382862350125, 1051.9420428629528 ]
+orientation error latent space:
+[ 1.692210736090074, 1.3190228906350456 ]
+spurious %:
+[ 1.0, 0.7746913580246914 ]

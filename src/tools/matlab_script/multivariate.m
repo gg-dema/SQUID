@@ -1,0 +1,62 @@
+%
+% k(y)_1 = 
+% exp{ - [ (g1_1 - y_1)^2 + (g1_2 - y_2)^2 ]  }* 2 * (g1_1 - y_1)  + exp {-[(g2_1 - y_1)^2 + (g2_2 - y_2)^2]}*2*(g2_1 - y1)
+
+
+% goal = 2
+    % y is a 2-element vector [y1, y2]
+    % g1 and g2 are also 2-element vectors [g1_1, g1_2] and [g2_1, g2_2]
+    
+    % Extract the components of y, g1, and g2
+    y1 = y(1);
+    y2 = y(2);
+    
+    g1_1 = g1(1);
+    g1_2 = g1(2);
+    
+    g2_1 = g2(1);
+    g2_2 = g2(2);
+    
+    % Calculate the first term: exp( -[ (g1_1 - y1)^2 + (g1_2 - y2)^2 ] ) * 2 * (g1_1 - y1)
+    term1 = exp( - ( (g1_1 - y1)^2 + (g1_2 - y2)^2 ) ) * 2 * (g1_1 - y1);
+    
+    % Calculate the second term: exp( -[ (g2_1 - y1)^2 + (g2_2 - y2)^2 ] ) * 2 * (g2_1 - y1)
+    term2 = exp( - ( (g2_1 - y1)^2 + (g2_2 - y2)^2 ) ) * 2 * (g2_1 - y1);
+    
+    % Compute k(y)_1 as the sum of the two terms
+    k1 = term1 + term2;
+
+%%
+% Define symbolic variables
+%syms A J i a j
+J = 2;
+A = 2;
+i = 1;
+j = [1, J];
+a = [1, A];
+syms t;
+syms y [1 J]  % y is a symbolic vector of size (1, J+1)
+syms g [A J]  % g is a symbolic matrix of size (A+1, J+1)
+
+% Initialize the sum
+k_i_y = sym(0);
+
+% Loop over 'a' from 0 to A
+for a = 1:A
+    % Compute the inner sum over 'j' from 0 to J
+    inner_sum = sum((g(a, :) - y).^2);  % (g_{a,j} - y_j)^2 for all j
+    
+    % Compute the full expression for each term in the outer sum
+    term = exp(-inner_sum) * 2 * (g(a, i) - y(i));
+    
+    % Add the term to the total sum
+    k_i_y = k_i_y + term;
+end
+
+% Display the symbolic result
+k_i_y
+
+%%
+syms y(t) [1, 2]
+time_dep_k_i_y = subs(k_i_y, y, y(t));
+k_i_y_diff = diff(time_dep_k_i_y, t);
