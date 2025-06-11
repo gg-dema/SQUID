@@ -5,12 +5,11 @@ In this project, we explore the integration of multi-attractor dynamics in the l
 Once that the operator shown to the robot how to execute a specific set of demonstrations, the system will learn how to reach the target despite the starting configuration. 
 The possibility of encode different motion into the model memory enanche the flexibility of the model, shaping the vector field that underline our planner desired state. 
 
-<div style="background-color: white; display: inline-block; padding: 10px;">
-  <img src="./img/Squid-discrete-Arc.png" alt="Architecture">
-</div>
+![Architecture](./img/Squid-discrete-Arc2.png)
 
 ### How can we generalize the attraction point of an object? What can be done for setting the entire contour of an object as a target attractor point?
 
-<div style="background-color: white; display: inline-block; padding: 10px;">
-  <img src="./img/Squid-continuous-Arc.png" alt="Architecture">
-</div>
+![Architecture](./img/Squid-continuous-Arc2.png)
+
+
+
