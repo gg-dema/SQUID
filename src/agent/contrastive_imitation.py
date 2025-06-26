@@ -14,7 +14,7 @@ from agent.utils.ranking_losses import (
 from agent.dynamical_system import DynamicalSystem
 from agent.utils.dynamical_system_operations import normalize_state
 
-
+import itertools
 
 class ContrastiveImitation:
     """
@@ -25,7 +25,8 @@ class ContrastiveImitation:
         self.dim_workspace = params.workspace_dimensions
         self.spherical_latent_space = params.spherical_latent_space
         self.dynamical_system_order = params.dynamical_system_order
-        self.dim_state = self.dim_workspace * self.dynamical_system_order
+        self.dim_state = self.dim_workspace
+        self.dim_state *= self.dynamical_system_order
         self.imitation_window_size = params.imitation_window_size
         self.batch_size = params.batch_size
         self.batch_size_contrastive_norm = params.batch_size_contrastive_norm
@@ -96,7 +97,7 @@ class ContrastiveImitation:
             self.contrastive_norm_loss = ContrastiveLossNorm(margin=params.contrastive_norm_margin)
 
         # Initialize Neural Network
-        self.model = NeuralNetwork(dim_state=self.dim_state, # - 1,
+        self.model = NeuralNetwork(dim_state=self.dim_state,
                                    dynamical_system_order=self.dynamical_system_order,
                                    n_primitives=self.n_primitives,
                                    multi_motion=self.multi_motion,
@@ -108,6 +109,7 @@ class ContrastiveImitation:
                                    adaptive_gains=params.adaptive_gains,
                                    n_attractors=self.n_attractors,
                                    latent_system_dynamic_type=params.latent_dynamic_system_type,
+                                   sigma=params.sigma,
                                    ).cuda()
         # Initialize optimizer
         self.optimizer = torch.optim.AdamW(self.model.parameters(),
@@ -146,7 +148,8 @@ class ContrastiveImitation:
                                            dim_state=self.dim_state,
                                            delta_t=delta_t,
                                            x_min=self.params_dynamical_system['x min'],
-                                           x_max=self.params_dynamical_system['x max'])
+                                           x_max=self.params_dynamical_system['x max'],
+                                           spherical_latent_space=self.spherical_latent_space)
 
         return dynamical_system
 
@@ -228,14 +231,19 @@ class ContrastiveImitation:
         if self.n_attractors == 2:
             reference_goals = torch.ones_like(goals_latent_space[0, :, :])
             reference_goals[1, :] *= -1
+            # no normalization --> norm of all 1 is 1
 
         elif self.n_attractors == 3:
             reference_goals = torch.ones_like(goals_latent_space[0, :, :])
             reference_goals[1, :] *= -0.7
             reference_goals[2, :] *= 0.2
+            if self.spherical_latent_space:
+                reference_goals = torch.nn.functional.normalize(reference_goals)
+
         elif self.n_attractors > 3:
             if self.no_goals_set_yet:
                 self.reference_goals = torch.rand(goals_latent_space[0, :, :].shape).cuda()
+                self.reference_goals = torch.nn.functional.normalize(self.reference_goals)
                 reference_goals = self.reference_goals
                 self.no_goals_set_yet = False
             else:
@@ -247,6 +255,7 @@ class ContrastiveImitation:
             reference_goals[:, :self.latent_dimension//2] = 0.0
 
         if self.spherical_latent_space:
+
             loss = [
                 0.5*torch.sum(great_circle_distance(goals_latent_space[0, i, :], reference_goals[i, :], dim=0))**2
                 for i in range(self.n_attractors)
@@ -335,12 +344,12 @@ class ContrastiveImitation:
 
         return angle_loss(orient_latent_state_polar, orient_shape)
         #return contrastive_angle(orient_latent_state_polar, orient_shape)
-
         #error = (orient_shape - orient_latent_state_polar)
         #normalized_error = torch.remainder(error + torch.pi, 2*torch.pi) - torch.pi
         #return 0.5 * normalized_error.pow(2).mean()
-
         #return F.mse_loss(orient_shape, orient_latent_state_polar)
+
+
     def boundary_constrain(self, state_sample, primitive_type_sample):
         # Force states to start at the boundary
         selected_axis = torch.randint(low=0, high=self.dim_state, size=[self.batch_size])
@@ -461,6 +470,7 @@ class ContrastiveImitation:
                 primitive_type_sample_gen = torch.cat((primitive_type_sample_gen_demo, primitive_type_sample_gen_inter), dim=0)
 
         return state_sample_gen, primitive_type_sample_gen
+
     def compute_loss(self, state_sample_IL, primitive_type_sample_IL, state_sample_gen, primitive_type_sample_gen):
         """
         Computes total cost
@@ -500,7 +510,6 @@ class ContrastiveImitation:
             loss_cycle_orient = self.cycle_orientation_loss_weight * self.limit_cycle_loss_orient(primitive_type_sample_gen)
             loss_list.append(loss_cycle_orient)
             losses_names.append('angle')
-
 
         # Sum losses
         loss = 0

@@ -1,6 +1,9 @@
 import torch
 import numpy as np
 import agent.utils.polar as polar
+from agent.utils.ranking_losses import great_circle_distance as gcd_ranking
+import itertools
+
 
 class NeuralNetwork(torch.nn.Module):
     """
@@ -8,7 +11,7 @@ class NeuralNetwork(torch.nn.Module):
     """
     def __init__(self, dim_state, dynamical_system_order, n_primitives, multi_motion, latent_gain_lower_limit,
                  latent_gain_upper_limit, latent_gain, latent_space_dim, neurons_hidden_layers, adaptive_gains,
-                 n_attractors, latent_system_dynamic_type):
+                 n_attractors, latent_system_dynamic_type, sigma):
         super(NeuralNetwork, self).__init__()
         
         # Initialize Network parameters
@@ -26,6 +29,8 @@ class NeuralNetwork(torch.nn.Module):
         self.adaptive_gains = adaptive_gains
         self.n_attractors = n_attractors
         self.latent_system_dynamic_type = latent_system_dynamic_type
+        self.sigma = sigma
+        self.sigma_normalization_term = np.sqrt(2*self.latent_space_dim * np.log(1/1e-4))
 
         # Select activation function
         self.activation = torch.nn.GELU()
@@ -94,7 +99,7 @@ class NeuralNetwork(torch.nn.Module):
 
         if self.latent_system_dynamic_type in ("standard", "gaussian", "gravity"):
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
-        elif self.latent_system_dynamic_type == "multivariate":
+        elif self.latent_system_dynamic_type in ("multivariate", "multivariate_s2"):
             # multiple gain for each equation of the latent state ---> unbalance behaviour, keep for now
             # a single alpha parameters for  (if use it back, change the dim of alpha --> look at multivariate dynamics)
             # return torch.nn.Linear(self.latent_space_dim, latent_input_size*self.n_attractors)
@@ -104,6 +109,8 @@ class NeuralNetwork(torch.nn.Module):
         elif self.latent_system_dynamic_type == 'limit cycle':
             # return torch.nn.Linear(self.latent_space_dim, latent_input_size - 2)
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
+        else:
+            raise(Exception )
 
     def update_goals_latent_space(self, goals):
         """
@@ -120,6 +127,18 @@ class NeuralNetwork(torch.nn.Module):
                 input = torch.zeros([1, self.n_input])  # add zeros as velocity goal for second order DS
                 input[:, :goals[i][attractor_id].shape[0]] = goals[i][attractor_id]
                 self.goals_latent_space[i][attractor_id] = self.encoder(input, primitive_type)
+
+    def update_model_sigma(self, goals):
+        with torch.no_grad():
+            y_g = self.encoder(goals.squeeze(0), torch.Tensor(0).cuda())
+            pairs = list(itertools.combinations(range(self.n_attractors), 2))
+            firsts = torch.stack([y_g[i] for i, j in pairs])
+            seconds = torch.stack([y_g[j] for i, j in pairs])
+            # great_circle_distance should support shape [N, 300], [N, 300]
+            dist = gcd_ranking(firsts, seconds).mean()
+            #self.sigma = (avg_dist / self.sigma_normalization_term)**2
+            print(f"new dist : {dist}")
+
 
     def update_goals_shape(self, goals_shape):
         """
@@ -242,12 +261,16 @@ class NeuralNetwork(torch.nn.Module):
         elif self.latent_system_dynamic_type == "multivariate":
             dy_t = alpha * self.multivariate_pot_vectorized(y_t, y_goals)
 
+        elif self.latent_system_dynamic_type == "multivariate_s2":
+            dy_t = alpha * self.hyperspherical_flow(y_t, y_goals)
+
         elif self.latent_system_dynamic_type == "gaussian":
             dy_t = alpha * self.gaussian_latent_system(y_t, y_goals)
 
         elif self.latent_system_dynamic_type == "limit cycle":
             beta = self.latent_gain_limit_cycle(y_t_norm)
             dy_t = self.limit_cycle(y_t, y_goals, alpha, beta)
+
         else:
             raise NameError(f"{self.latent_system_dynamic_type} is not valid")
         return dy_t
@@ -304,13 +327,76 @@ class NeuralNetwork(torch.nn.Module):
                 potential[:, d] += torch.exp(exp_arg) * 2 * (g[d] - y_t[:, d])
         return potential
 
+    def hyperspherical_curve(self, y_t, y_g):
+        # [batch, dim]
+        # N point ~ N goal = y_g [batch, point, dim]
+        sim = torch.matmul(y_t, y_g.T).clamp(-0.9999, 0.9999)
+        theta = torch.acos(sim)
+        #weights = torc
+        omega = torch.zeros_like(y_t)
+        omega[..., -1] = 1
+
+        # cross product :  f = np.cross(omega, y_t)
+        return y_t # np.dot(f, y_t)*y_t
+
+    def hyperspherical_flow(self, y_t, y_g):
+        """
+        Compute hyperspherical vector field flow.
+
+        Args:
+            y_t: Tensor of shape [batch, state_dim] - current states
+            y_g: Tensor of shape [state_dim, N_goal] - goal states
+            beta: float - scaling factor for similarity
+            eps: float - small number for numerical stability
+
+        Returns:
+            flow: Tensor of shape [batch, state_dim]
+        """
+        # Normalize
+        y_g = y_g[0, ...]
+        y_t = torch.nn.functional.normalize(y_t, dim=1)  # [batch, D]
+        y_g = torch.nn.functional.normalize(y_g, dim=0)  # [D, N]
+
+        # ------------ Greater circle distance
+        # Cosine similarities: [batch, N]
+        cos_sim = torch.matmul(y_t, y_g)  # y_t: [B, D] x y_g: [D, N] -> [B, N]
+        cos_sim = torch.clamp(cos_sim, -0.9999, 0.9999)  # for arccos stability
+
+        # Angles: [batch, N]
+        theta = torch.acos(cos_sim)  # [B, N]  ---> theta is the greater circle distance
+
+        weights = torch.exp(-(theta**2) / self.sigma**2).unsqueeze(-1)
+
+        # scaling factor --> what if theta is 0 ?
+        # consider a sin expansion for replace that values
+        sin_theta = torch.sin(theta)  # [B, N]
+
+        # Term: y_g - cos(theta) * y_t for each goal
+        # [B, N, D] = [B, N, 1] * [B, 1, D]
+        cos_theta_y_t = cos_sim.unsqueeze(-1) * y_t.unsqueeze(1)  # [B, N, D]
+        y_g_exp = y_g.T.unsqueeze(0).expand(y_t.shape[0], -1, -1)  # [B, N, D]
+
+
+        log_map = y_g_exp - cos_theta_y_t  # [B, N, D]
+        scale = (theta / sin_theta).unsqueeze(-1)  # [B, N, 1]
+        tangent_vecs = scale * log_map  # [B, N, D]
+
+        # Weights
+        # weights = torch.exp(-cos_sim).unsqueeze(-1)  # [B, N, 1]
+
+        # Weighted sum
+        flow = (weights * tangent_vecs).sum(dim=1)  # [B, D]
+
+        return flow
+
     def multivariate_pot_vectorized(self, y_t, y_g):
         y_g = y_g.permute(0, 2, 1)
         y_t = y_t.unsqueeze(1)
-        square_diff = (y_g - y_t)**2
+        diff = y_g - y_t
+        square_diff = diff**2
         exp_arg = -torch.sum(square_diff, dim=2)
         exp_vals = torch.exp(exp_arg)
-        diff = y_g - y_t
+        #exp_vals = torch.exp((2/self.sigma**2)*(exp_arg))
         potential = torch.sum(exp_vals.unsqueeze(-1) * diff * 2, dim=1)
         return potential
 
@@ -323,3 +409,56 @@ class NeuralNetwork(torch.nn.Module):
     def well_known_2_point(self, alpha, y_t, y_goals):
         pass
 
+# --------------
+"""
+def log_map_taylor_exp(y_t, y_g, eps=1e-8):
+    
+    y_T = [300 x 268]. [300 is the dim of the state, 268 is the batch]
+    y_g = [300 x 3] / [3 are the goals state]
+    
+    y_g = y_g[0, ...]
+    dot = torch.clamp(torch.matmul(y_t, y_g), -1.0, 1.0)
+    theta = torch.acos(dot)
+    sin_theta = torch.sin(theta)
+
+    # Special case: use 4th-order Taylor expansion when theta is very small
+    #if theta < 1e-3:
+        # @TODO check the expansion parameters
+    #    theta2 = theta * theta
+    #    theta4 = theta2 * theta2
+    #    scale = 1 + theta2 / 6 + 7 * theta4 / 360
+    #else:
+    scale = theta / torch.where(sin_theta > eps, sin_theta, eps) #max(sin_theta, eps)
+    v = torch.matmul(scale,  (y_g - torch.matmul(dot.T, y_t).T))
+    return v
+"""
+
+def log_map_taylor_exp(x, y, eps=1e-8):
+    # x: [batch, dim]
+    # y: [batch, dim, n]
+    dot = torch.clamp((x.unsqueeze(-1) * y).sum(dim=1), -1.0, 1.0)  # [batch, n]
+    theta = torch.acos(dot)
+    sin_theta = torch.sin(theta)
+
+    # Compute scale factors using Taylor expansion for small angles
+    scale = torch.where(
+        theta < 1e-3,
+        1 + theta**2 / 6 + 7 * theta**4 / 360,
+        theta / torch.maximum(sin_theta, torch.tensor(eps, device=theta.device))
+    )
+
+    # Compute log map
+    v = scale.unsqueeze(1) * (y - dot.unsqueeze(1) * x.unsqueeze(-1))
+    return v
+"""
+def great_circle_distance(a, b):
+    # a,b: 3D unit vectors
+    cosine = torch.clamp(torch.matmul(a, b), -0.99999, 0.99999)
+    # tbh, (a,b) are always unit vector? should we normalize this in some way?
+    return torch.acos(cosine)
+"""
+def great_circle_distance(a, b):
+    # a: [batch, dim]
+    # b: [batch, dim, n] or [batch, dim] (broadcastable)
+    cosine = torch.clamp((a.unsqueeze(-1) * b).sum(dim=1), -0.99999, 0.99999)
+    return torch.acos(cosine)

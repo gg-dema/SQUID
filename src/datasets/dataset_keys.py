@@ -89,7 +89,8 @@ eval_dataset = [
 ]
 kuka = ['box',
         'box_full',
-        'simple']
+        'simple',
+        'split']
 
 cycle = [
     'limit_cycle',

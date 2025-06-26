@@ -10,7 +10,7 @@ class DynamicalSystem():
     Dynamical System that uses Neural Network trained with Contrastive Imitation
     """
     def __init__(self, x_init, order, min_state_derivative, max_state_derivative, saturate_transition, primitive_type,
-                 model, dim_state, delta_t, x_min, x_max):
+                 model, dim_state, delta_t, x_min, x_max, spherical_latent_space):
         # Initialize NN model
         self.model = model
 
@@ -40,6 +40,7 @@ class DynamicalSystem():
         # start with the standard orientation (4 as quaternion dim)
         #self.last_orientation_log = np.zeros((self.batch_size, 4))
         #self.last_orientation_log[:, 0] = 1
+        self.spherical_latent_space = spherical_latent_space
 
     def get_latent_state(self, x_t=None, space='task'):
         """
@@ -70,7 +71,12 @@ class DynamicalSystem():
         dy_t_d = self.model.latent_dynamical_system(y_t, self.primitive_type)
 
         # Integrate
-        self.y_t_d = euler_integration(y_t, dy_t_d, self.delta_t)
+        if self.spherical_latent_space:
+            # use exponential map for come back to the original manifold
+            self.y_t_d = exp_map(y_t, self.delta_t * dy_t_d)
+        else:
+            # standard euler integration
+            self.y_t_d = euler_integration(y_t, dy_t_d, self.delta_t)
 
         return self.y_t_d, y_t
 
@@ -282,3 +288,12 @@ class DynamicalSystem():
             x_t_d[:, i] = torch.clamp(x_t_d[:, i], self.x_min[i], self.x_max[i])
 
         return x_t_d
+
+
+
+# --- Exponential map on the sphere ---
+def exp_map(x, v):
+    norm_v = torch.linalg.norm(v)
+    if norm_v < 1e-10:
+        return x  # No movement
+    return torch.cos(norm_v) * x + torch.sin(norm_v) * (v / norm_v)

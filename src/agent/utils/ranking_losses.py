@@ -40,21 +40,7 @@ class ContrastiveLossJointSpace(nn.Module):
         super(ContrastiveLossJointSpace, self).__init__()
         self.margin = margin
         self.eps = 1e-20
-
-    def wrapped_distance(self, output1, output2):
-        # Angular difference wrapped around [-pi, pi]
-        delta = output2 - output1
-        wrapped_delta = (delta + torch.pi) % (2 * torch.pi) - torch.pi
-        return wrapped_delta.pow(2).sum(1)  # squared angular distance
-
-    def embed_angles(self, angles):
-        # angles: [batch, D] → returns [batch, 2*D] with cos and sin
-        return torch.cat([torch.cos(angles), torch.sin(angles)], dim=1)
-
     def forward(self, output1, output2, target, size_average=True):
-        #emb1 = self.embed_angles(output1)
-        #emb2 = self.embed_angles(output2)
-        #distances = (emb2 - emb1).pow(2).sum(1)  # Euclidean squared distance in (cos, sin) space
         distances = great_circle_distance(output2, output1)
         losses = 0.5 * (
             target.float() * distances +
@@ -93,7 +79,6 @@ class ContrastiveLossNorm(nn.Module):
         losses = 0.5 * ((target.T * norm_distance) +
                         (1 + -1 * target) * F.relu(self.margin - (norm_distance + self.eps)).pow(2))
         return losses.mean() if size_average else losses.sum()
-
 
 class TripletLoss(nn.Module):
     """

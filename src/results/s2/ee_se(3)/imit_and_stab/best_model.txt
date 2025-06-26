@@ -1,0 +1,16 @@
+Number of unsuccessful trajectories: 0
+RMSE + DTWD + FD: 0.287783035594735
+RMSE: 0.046781021607996146
+DTWD: 0.08160470585661611
+FD: 0.15939730813012276
+Iteration number: 7000
+
+
+ ###### GPU information ###### 
+
+Using device: cuda
+
+NVIDIA GeForce RTX 4050 Laptop GPU
+Memory Usage:
+Allocated: 0.0 GB
+Cached:    0.2 GB

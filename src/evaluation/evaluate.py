@@ -16,7 +16,7 @@ class Evaluate():
 
         # Params file parameters
         self.fixed_point_iteration_thr = params.fixed_point_iteration_thr
-        self.dim_state = params.workspace_dimensions * params.dynamical_system_order
+        self.dim_state = (params.workspace_dimensions) * params.dynamical_system_order
         self.dim_workspace = params.workspace_dimensions
         self.ignore_n_spurious = params.ignore_n_spurious
         self.latent_dynamic_system_type = params.latent_dynamic_system_type
@@ -55,6 +55,7 @@ class Evaluate():
         self.n_attractors = params.n_attractors
         self.intra_distance_goals = [[] for i in range(self.n_attractors)]
 
+        self.save_all_models = params.save_all_models
     def get_initial_states_grid(self):
         """
         Samples initial states from a grid in the state space
@@ -431,11 +432,14 @@ class Evaluate():
         # Save states
         save_stats_txt(save_path, self.n_spurious, self.metrics_sum, self.RMSE, self.DTWD, self.FD, i)
 
-        if self.best_model or self.multi_motion:  # metric evaluation is not yet properly done in multi task case
-            # Save torch
-            torch.save(model.state_dict(), save_path + 'model')
+        if not self.save_all_models:
 
+            if self.best_model or self.multi_motion:  # metric evaluation is not yet properly done in multi task case
+                # Save torch
+                torch.save(model.state_dict(), save_path + 'model')
+        else:
+            torch.save(model.state_dict(), save_path+f'model_{i}')
             # Save best stats in txt
-            gpu_status = check_gpu()
-            save_best_stats_txt(save_path, self.best_n_spurious, self.best_metric, self.best_RMSE, self.best_DTWD,
+        gpu_status = check_gpu()
+        save_best_stats_txt(save_path, self.best_n_spurious, self.best_metric, self.best_RMSE, self.best_DTWD,
                                 self.best_FD, gpu_status, i)

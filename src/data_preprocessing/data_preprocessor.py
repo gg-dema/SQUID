@@ -686,6 +686,7 @@ class DataPreprocessor:
 
             # Create input for spline: demonstrations and corresponding phases
             spline_input = []
+
             for i in range(self.dim_workspace):
                 spline_input.append(demo_norm[:, i])
             spline_input.append(curve_phases)
