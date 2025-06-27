@@ -1,6 +1,8 @@
+import itertools
 import numpy as np
 import torch
 import torch.nn.functional as F
+
 
 from agent.neural_network import NeuralNetwork
 from agent.utils.ranking_losses import (
@@ -25,7 +27,8 @@ class ContrastiveImitation:
         self.dim_workspace = params.workspace_dimensions
         self.spherical_latent_space = params.spherical_latent_space
         self.dynamical_system_order = params.dynamical_system_order
-        self.dim_state = self.dim_workspace * self.dynamical_system_order
+        self.dim_state = self.dim_workspace
+        self.dim_state *= self.dynamical_system_order
         self.imitation_window_size = params.imitation_window_size
         self.batch_size = params.batch_size
         self.batch_size_contrastive_norm = params.batch_size_contrastive_norm
@@ -96,7 +99,7 @@ class ContrastiveImitation:
             self.contrastive_norm_loss = ContrastiveLossNorm(margin=params.contrastive_norm_margin)
 
         # Initialize Neural Network
-        self.model = NeuralNetwork(dim_state=self.dim_state, # - 1,
+        self.model = NeuralNetwork(dim_state=self.dim_state,
                                    dynamical_system_order=self.dynamical_system_order,
                                    n_primitives=self.n_primitives,
                                    multi_motion=self.multi_motion,
@@ -108,6 +111,7 @@ class ContrastiveImitation:
                                    adaptive_gains=params.adaptive_gains,
                                    n_attractors=self.n_attractors,
                                    latent_system_dynamic_type=params.latent_dynamic_system_type,
+                                   sigma=params.sigma,
                                    ).cuda()
         # Initialize optimizer
         self.optimizer = torch.optim.AdamW(self.model.parameters(),
@@ -146,7 +150,8 @@ class ContrastiveImitation:
                                            dim_state=self.dim_state,
                                            delta_t=delta_t,
                                            x_min=self.params_dynamical_system['x min'],
-                                           x_max=self.params_dynamical_system['x max'])
+                                           x_max=self.params_dynamical_system['x max'],
+                                           spherical_latent_space=self.spherical_latent_space)
 
         return dynamical_system
 
@@ -225,17 +230,24 @@ class ContrastiveImitation:
         goals_latent_space = self.model.encoder(goals_2nd_order, primitive_type_sample)  # 1 2 300
 
 
+        # @TODO: fix the different selection of the goal for different n of attractors
+
         if self.n_attractors == 2:
             reference_goals = torch.ones_like(goals_latent_space[0, :, :])
             reference_goals[1, :] *= -1
-
         elif self.n_attractors == 3:
             reference_goals = torch.ones_like(goals_latent_space[0, :, :])
             reference_goals[1, :] *= -0.7
             reference_goals[2, :] *= 0.2
+
+            # if we learn a manifold representation, each element should have a norm equals to 1
+            if self.spherical_latent_space:
+                reference_goals = torch.nn.functionl.normalize(reference_goals)
+
         elif self.n_attractors > 3:
             if self.no_goals_set_yet:
                 self.reference_goals = torch.rand(goals_latent_space[0, :, :].shape).cuda()
+                self.reference_goals = torch.nn.functional.normalize(self.reference_goals)
                 reference_goals = self.reference_goals
                 self.no_goals_set_yet = False
             else:
@@ -247,12 +259,16 @@ class ContrastiveImitation:
             reference_goals[:, :self.latent_dimension//2] = 0.0
 
         if self.spherical_latent_space:
+            # calculate the distance between the goals and the reference point directly on the manifold
+            # AKA use directly the great_circle_distance
             loss = [
                 0.5*torch.sum(great_circle_distance(goals_latent_space[0, i, :], reference_goals[i, :], dim=0))**2
                 for i in range(self.n_attractors)
             ]
         else:
-            loss = [torch.nn.functional.mse_loss(goals_latent_space[0, i, :], reference_goals[i, :]) for i in range(self.n_attractors)]
+            loss = [
+                torch.nn.functional.mse_loss(goals_latent_space[0, i, :], reference_goals[i, :]) for i in range(self.n_attractors)
+            ]
 
         if self.goal_mapping_loss_weight > 1e-10:
             self.goal_mapping_loss_weight *= self.goal_mapping_decreasing_weight
@@ -282,6 +298,8 @@ class ContrastiveImitation:
         # add random point in the grid for negative sample (simple negative, not only hard negative)
         random_point = torch.rand(selected_neg.shape).cuda()
 
+        # commented code is for the test without hard negative, that do not work very well (at level of performance)
+        # uncomment this code for test it by yourself
         # random_point = torch.rand((self.batch_size_contrastive_norm, 2)).cuda()
 
         latent_positive = self.model.encoder(selected_pos, primitive_type_sample).unsqueeze(0)
@@ -298,6 +316,8 @@ class ContrastiveImitation:
         return self.contrastive_norm_loss(x, target)
 
     def limit_cycle_loss_orient(self, primitive_type):
+
+        # ps: the different version of this stuff are used for benchmark the different option for the orientation loss
         def angle_loss(pred_angle, target_angle):
             # Convert angles to unit vectors
             pred_vec = torch.stack([torch.cos(pred_angle), torch.sin(pred_angle)], dim=-1)
@@ -461,6 +481,7 @@ class ContrastiveImitation:
                 primitive_type_sample_gen = torch.cat((primitive_type_sample_gen_demo, primitive_type_sample_gen_inter), dim=0)
 
         return state_sample_gen, primitive_type_sample_gen
+
     def compute_loss(self, state_sample_IL, primitive_type_sample_IL, state_sample_gen, primitive_type_sample_gen):
         """
         Computes total cost

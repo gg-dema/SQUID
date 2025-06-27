@@ -6,7 +6,6 @@ from datasets.dataset_keys import (
 )
 
 from spatialmath import SO3, UnitQuaternion
-
 import os
 import pickle
 import numpy as np
@@ -96,7 +95,6 @@ def get_data_loader(dataset_name, dim_manifold):
         'simple',
         'cycle',
     ]
-    print(dataset_in_numpy_format)
     if dataset_name == 'LASA':
         data_loader = load_LASA
     elif dataset_name in dataset_in_numpy_format:
@@ -105,7 +103,7 @@ def get_data_loader(dataset_name, dim_manifold):
         data_loader = load_from_dict
     elif dataset_name == 'kuka' and dim_manifold == 3:
         data_loader = load_R3
-    elif dataset_name == 'kuka' and dim_manifold == 6:
+    elif dataset_name == 'kuka' and dim_manifold == 7:
         data_loader = load_R3S3
     else:
         raise NameError('Dataset %s does not exist' % dataset_name)

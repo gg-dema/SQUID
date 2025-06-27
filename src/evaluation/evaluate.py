@@ -55,6 +55,8 @@ class Evaluate():
         self.n_attractors = params.n_attractors
         self.intra_distance_goals = [[] for i in range(self.n_attractors)]
 
+        self.save_all_models = params.save_all_models
+
     def get_initial_states_grid(self):
         """
         Samples initial states from a grid in the state space
@@ -304,7 +306,7 @@ class Evaluate():
                 demos_padded[:, i, j] = demonstrations_eval_i_j
 
         return demos_padded
-    
+
     def compute_quanti_eval(self, sim_results, attractor, primitive_id):
         """
         Computes quantitative evaluation metrics
@@ -431,11 +433,14 @@ class Evaluate():
         # Save states
         save_stats_txt(save_path, self.n_spurious, self.metrics_sum, self.RMSE, self.DTWD, self.FD, i)
 
-        if self.best_model or self.multi_motion:  # metric evaluation is not yet properly done in multi task case
-            # Save torch
-            torch.save(model.state_dict(), save_path + 'model')
+        if not self.save_all_models:
 
+            if self.best_model or self.multi_motion:  # metric evaluation is not yet properly done in multi task case
+                # Save torch
+                torch.save(model.state_dict(), save_path + 'model')
+        else:
+            torch.save(model.state_dict(), save_path+f'model_{i}')
             # Save best stats in txt
-            gpu_status = check_gpu()
-            save_best_stats_txt(save_path, self.best_n_spurious, self.best_metric, self.best_RMSE, self.best_DTWD,
+        gpu_status = check_gpu()
+        save_best_stats_txt(save_path, self.best_n_spurious, self.best_metric, self.best_RMSE, self.best_DTWD,
                                 self.best_FD, gpu_status, i)
