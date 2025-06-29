@@ -86,22 +86,22 @@ In lower dimension, here you can have a look at the vector field generated from 
 </p>
 
 <h3>Planar motion in R^2: Discrete Target</h3>
-<img src="img/3-r.jpg" style="width: 32%;">
-<img src="img/3R-cyc.jpg" style="width: 32%;">
-<img src="img/10-r2.jpg" style="width: 33%;">
+<img src="img/3-r.jpg" style="width: 30%;">
+<img src="img/3R-cyc.jpg" style="width: 30%;">
+<img src="img/10-r2.jpg" style="width: 30%;">
 
 
 <h3>Planar motion in R^2: Continuous Target</h3>
 <p>2D vector fields generated usign a continuous cruve of attractions</p>
-<img src="img/star.jpg" style="width: 24%;">
-<img src="img/squirtle.jpg"  style="width: 24.5%;">
-<img src="img/charmender.jpg"  style="width: 24%;">
-<img src="img/bulbasaur.jpg"  style="width: 24%;">
+<img src="img/star.jpg" style="width: 20%;">
+<img src="img/squirtle.jpg"  style="width: 20%;">
+<img src="img/charmender.jpg"  style="width: 20%;">
+<img src="img/bulbasaur.jpg"  style="width: 20%;">
 
 <h3>Planar motion in S^2:</h2>
 <p> 2D vector fields generated using a spherical latent space</p>
-<img src="img/3-s.jpg" style="width: 48%">
-<img src="img/10-s2.jpg" style="width: 48%">
+<img src="img/3-s.jpg" style="width: 45%">
+<img src="img/10-s2.jpg" style="width: 45%">
 
 <h3>Motion in SE(3):</h3>
 <p>7-dim motion, where the state <code>q</code> is composed by 3 element for the position (<code>x, y, z</code>) and 4 element for the orientation (quaternion) (<code>alpha, beta, gamma, w</code>)</p>
