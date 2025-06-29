@@ -7,15 +7,15 @@ class Params:
     dataset_name: str = 'multi_attractors'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space, multi_attractors, kuka
     results_path: str = 'results/s2/imit-'
     multi_motion: bool = False                           # true when learning multiple motions together : always false for multi-goal
-    selected_primitives_ids: str = '2'                   # id number from dataset_keys.py, e.g., '2' or '4,0,6'
+    selected_primitives_ids: str = '10'                   # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 2                        # dimensionality of the data
     spherical_latent_space: bool = True                 # define the distance function used in the latent space --> euclidean space or spherical manifold
     saturate_out_of_boundaries_transitions: bool = True  # True to enforce positively invariant set
     dynamical_system_order: int = 1                      # options: 1, 2
 
     """ Multi Attractors """
-    n_attractors: int = 3                                # n attractors
-    sigma = 0.20                                         # dev std for the multivariate (R^n and S^n) gaussian
+    n_attractors: int = 9                                # n attractors
+    sigma = 0.35                                         # dev std for the multivariate (R^n and S^n) gaussian
     latent_dynamic_system_type: str = "multivariate_s2"  # option: standard, gaussian, well_known, multivariate, multivariate_s2, limit_cycle
     shaped_attractors_form: str = None
 

@@ -10,7 +10,7 @@
 
 <p>
   This project explores the integration of <strong>dynamical systems</strong> and <strong>neural networks</strong> for learning motion primitives from demonstrations.
-  Specifically, we investigate how to transfer the <strong>stability properties</strong> of known dynamical systems to <em>unknown systems</em> inferred from human demonstrations. 
+  Specifically, we investigate how to transfer the <strong>stability properties</strong> of known dynamical systems to unknown systems inferred from human demonstrations. 
   This falls under the domain of <strong>Imitation Learning</strong>.
 </p>
 
@@ -19,39 +19,21 @@
   multiple trajectories with distinct end-points. Our approach introduces and evaluates architectures capable of learning such multi-stable behaviors.
 </p>
 
-
-<h2>Research Questions</h2>
-
-<h3>✅ How can we address multiple demonstrations with a single model and enforce stability?</h3>
-
 <p>
-  We integrate <strong>multi-attractor dynamics</strong> into the <strong>latent space</strong> of a neural network. 
-  After observing a variety of demonstrations, the model learns to reach target configurations from arbitrary initial states. 
-  Encoding different attractors in memory enhances model flexibility and allows shaping of the underlying <strong>vector field</strong> used for planning.
+We integrate <strong>multi-attractor dynamics</strong> into the <strong>latent space</strong> of a neural network. 
+After observing a few demonstrations, the model learns to reach target configurations from arbitrary initial states. Using a multivariate gaussian dynamic we are able to learn a potential infinite number of attractor in R^n, 
+while  using a continuous set of attraction point we can constrain the final configuration to reach a continuous curve of attraction, allowing a robot to select any grasping point on a particular object.
+Finally, with a multivariate gaussian dynamic on a spherical manifold, we are able to control also the orientation of the robot.
+
+Encoding different attractors in memory enhances model flexibility and allows shaping of the underlying <strong>vector field</strong> used for planning. 🎯
 </p>
 
-<img src="./img/Squid-discrete-Arc2.png" alt="Discrete Attractors Architecture" style="width: 80%;">
 
-<h3>🎯 How can we generalize attraction from a single point to an entire object contour?</h3>
+<img src="./img/Squid-discrete-Arc2.png" alt="Discrete Attractors Architecture" style="width: 100%;">
+<img src="./img/Squid-continuous-Arc2.png" alt="Continuous Attractors Architecture" style="width: 100%;">
+
 
 <p>
-  We extend attraction modeling from discrete points to <strong>continuous attractor regions</strong>, 
-  such as the full contour of an object. This enables the planner to consider any point along the contour as a valid target.
-</p>
-
-<img src="./img/Squid-continuous-Arc2.png" alt="Continuous Attractors Architecture" style="width: 80%;">
-
-
-<h3> with this project, we provide solution to the following cases:</h3> 
-<p>
-  We provide solutions for learning:
-  <ul>
-    <li>Discrete attractor points in ℝ^n</li>
-    <li>Continuous attractor curves</li>
-    <li>Attractors on manifold spaces, such as S^n</li>
-  </ul>
-</p>
-
 <h2>🚀 Installation</h2>
 
 <p>This project uses <strong>Poetry</strong> for dependency and environment management.</p>
@@ -93,6 +75,38 @@ python train.py --params &lt;config_file&gt;
 <pre><code>python src/tool/hard_neg_extraction.py</code></pre>
   </li>
 </ul>
+
+<h2> Experiments</h2>
+<h3> Reference dynamics</h3>
+
+<p>
+The reference dynamics used in the project are the multivariate gaussian dynamic in R^n and in S^n, a "continuous curve" dynamic. All of these are define in the <code>src/agent/neural_networks.py</code> file. 
+In lower dimension, here you can have a look at the vector field generated from them: 
+<img src="img/full_latent_model.png">
+</p>
+
+<h3>Planar motion in R^2: Discrete Target</h3>
+<img src="img/3-r.jpg" style="width: 32%;">
+<img src="img/3R-cyc.jpg" style="width: 32%;">
+<img src="img/10-r2.jpg" style="width: 33%;">
+
+
+<h3>Planar motion in R^2: Continuous Target</h3>
+<p>2D vector fields generated usign a continuous cruve of attractions</p>
+<img src="img/star.jpg" style="width: 24%;">
+<img src="img/squirtle.jpg"  style="width: 24.5%;">
+<img src="img/charmender.jpg"  style="width: 24%;">
+<img src="img/bulbasaur.jpg"  style="width: 24%;">
+
+<h3>Planar motion in S^2:</h2>
+<p> 2D vector fields generated using a spherical latent space</p>
+<img src="img/3-s.jpg" style="width: 48%">
+<img src="img/10-s2.jpg" style="width: 48%">
+
+<h3>Motion in SE(3):</h3>
+<p>7-dim motion, where the state <code>q</code> is composed by 3 element for the position (<code>x, y, z</code>) and 4 element for the orientation (quaternion) (<code>alpha, beta, gamma, w</code>)</p>
+<img src="img/7-dim-motion.png">
+
 
 <h2>🙏 Acknowledgments</h2>
 
