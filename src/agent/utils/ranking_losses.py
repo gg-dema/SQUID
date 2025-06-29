@@ -31,13 +31,14 @@ class ContrastiveLoss(nn.Module):
         return losses.mean() if size_average else losses.sum()
 
 
-class ContrastiveLossJointSpace(nn.Module):
+class ContrastiveLossSphericalSpace(nn.Module):
     """
     Contrastive loss
     Takes embeddings of two samples and a target label == 1 if samples are from the same class and label == 0 otherwise
+    This version use as distance function the great_circle_distance
     """
     def __init__(self, margin):
-        super(ContrastiveLossJointSpace, self).__init__()
+        super(ContrastiveLossSphericalSpace, self).__init__()
         self.margin = margin
         self.eps = 1e-20
 

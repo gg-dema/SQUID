@@ -14,7 +14,7 @@ def evaluator_init(learner, data, params, verbose=True):
     #    return EvaluateND(learner, data, params, verbose)
 
     if params.workspace_dimensions == 2 and params.dynamical_system_order == 1:
-        if params.latent_dynamic_system_type == "limit cycle":
+        if params.latent_dynamic_system_type in ("limit cycle", "limit cycle avg"):
             return EvaluateShape(learner, data, params, verbose)
         return Evaluate2DO1(learner, data, params, verbose)
     elif params.workspace_dimensions == 2 and params.dynamical_system_order == 2:

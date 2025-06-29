@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import agent.utils.polar as polar
-from agent.utils.ranking_losses import great_circle_distance as gcd_ranking
 
 import itertools
 
@@ -37,7 +36,7 @@ class NeuralNetwork(torch.nn.Module):
 
         # Initialize goals list
         self.goals_latent_space = [list(np.zeros(n_attractors)) for _ in range(n_primitives)]
-
+        self.y_g_avg = torch.zeros(self.latent_space_dim).cuda()       # avg goal ---> mean point between all the other goals. Obtained projection phi(x) = y and then by y.mean
         # Primitives encodings
         self.primitives_encodings = torch.eye(n_primitives).cuda()
 
@@ -104,7 +103,7 @@ class NeuralNetwork(torch.nn.Module):
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
         elif self.latent_system_dynamic_type == "well known":
             raise NotImplementedError(' well known still to define ==> gain nn for alpha')
-        elif self.latent_system_dynamic_type == 'limit cycle':
+        elif self.latent_system_dynamic_type in ('limit cycle', 'limit cycle avg'):
             # return torch.nn.Linear(self.latent_space_dim, latent_input_size - 2)
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
         else:
@@ -129,13 +128,12 @@ class NeuralNetwork(torch.nn.Module):
     def update_goals_shape(self, goals_shape):
         """
             maps the task shape contour to a latent space representation,
-            the, compute the part used in the linear dynamic (the avg goals shape)
+            then, compute the part used in the linear dynamic (the avg goals shape)
         """
         primitive_type = torch.FloatTensor([0]).cuda()
         goals_shape = torch.FloatTensor(goals_shape).cuda()
 
-        self.y_g0 = self.encoder(goals_shape, primitive_type).mean(0)
-
+        self.y_g_avg = self.encoder(goals_shape, primitive_type).mean(0)
 
     def get_goals_latent_space_batch(self, primitive_type):
         """
@@ -220,6 +218,21 @@ class NeuralNetwork(torch.nn.Module):
             gains = self.latent_gain
         return gains
 
+    def latent_gain_limit_cycle(self, y_t_norm):
+        """
+        Computes gains latent dynamical system f^{L} for limit cycle component
+        """
+
+        if self.adaptive_gains:
+            input = y_t_norm
+            latent_gain_1 = self.activation(self.norm_gain_beta(self.gain_nn_beta_1(input)))
+            gains = self.sigmoid(self.gain_nn_beta_2(latent_gain_1))
+
+            # Keep gains between the set limits
+            gains = gains * (self.latent_gain_upper_limit_beta - self.latent_gain_lower_limit_beta) + self.latent_gain_lower_limit
+        else:
+            gains = self.latent_gain
+        return gains
 
     def latent_dynamical_system(self, y_t, primitive_type):
         """
@@ -253,48 +266,44 @@ class NeuralNetwork(torch.nn.Module):
         elif self.latent_system_dynamic_type == "gaussian":
             dy_t = alpha * self.gaussian_latent_system(y_t, y_goals)
 
+        # the following dynamics are used for generate a continuous curve of attraction,
+        # the difference between the 2 dynamic are in the single attractor component.
+        # In one case the goal of that part of the dynamic is the 0 vector --> "limit cycle"
+        # In the other the goal is the average point of the task space shape ---> "limit cycle avg"
+        # having as goal the 0 vector generate a flow in the direction of the curve also from the internal area,
+        # while having as goal the avg point generate a flat vector field inside the shape
+        # ---------------------------------------------------------------------------------------
         elif self.latent_system_dynamic_type == "limit cycle":
             beta = self.latent_gain_limit_cycle(y_t_norm)
-            dy_t = self.limit_cycle(y_t, y_goals, alpha, beta)
+            dy_t = self.limit_cycle(y_t, alpha, beta, linear_dyn_goal=False)
+        elif self.latent_system_dynamic_type == "limit cycle avg":
+            beta = self.latent_gain_limit_cycle(y_t_norm)
+            dy_t = self.limit_cycle(y_t, alpha, beta, linear_dyn_goal=True)
         else:
             raise NameError(f"{self.latent_system_dynamic_type} is not valid")
         return dy_t
 
 
-    def latent_gain_limit_cycle(self, y_t_norm):
-        """
-        Computes gains latent dynamical system f^{L} for limit cycle component
-        """
-
-        if self.adaptive_gains:
-            input = y_t_norm
-            latent_gain_1 = self.activation(self.norm_gain_beta(self.gain_nn_beta_1(input)))
-            gains = self.sigmoid(self.gain_nn_beta_2(latent_gain_1))
-
-            # Keep gains between the set limits
-            gains = gains * (self.latent_gain_upper_limit_beta - self.latent_gain_lower_limit_beta) + self.latent_gain_lower_limit
-        else:
-            gains = self.latent_gain
-        return gains
-
-
-    def limit_cycle(self, y_t, y_goals, alpha, beta):
+    def limit_cycle(self, y_t, alpha, beta, linear_dyn_goal):
         y_t_polar = polar.euclidean_to_polar(y_t)
-        y_t_polar_dot = self.polar_dyn(y_t_polar, y_goals, beta)
+        y_t_polar_dot = self.polar_dyn(y_t_polar, beta, linear_dyn_goal)
         y_t_euc_dot = polar.polar_to_euclidean_velocity(y_t_polar, y_t_polar_dot)
         return alpha * y_t_euc_dot
 
-    def polar_dyn(self, y_t_polar, y_goals, beta=3.5):
+    def polar_dyn(self, y_t_polar, beta=3.5, linear_dyn_goal=False):
 
-        y_goals_avg = torch.mean(y_goals, -1)
         y_dot_pol = torch.zeros_like(y_t_polar)
+        # logistic map
         y_dot_pol[:, 0] = y_t_polar[:, 0] * (1 - y_t_polar[:, 0]**2) * beta.T
 
-        # y_dot_pol[:, 1] = 0 --> automatic done
-        # then 3 option : this option generate different velocity profile
-        # y_dot_pol[:, 2:] = torch.sum(y_goals[:, 2:, :] - y_t_polar[:, 2:].unsqueeze(-1), axis=-1)
-        # y_dot_pol[:, 2:] = -(self.y_g0[2:] - y_t_polar[:, 2:])**2
-        y_dot_pol[:, 2:] = -y_t_polar[:, 2:]
+        # zero angular velocity --> y_dot_pol[:, 2] = 0
+
+        # linear goal of the dynamic -> 0 or avg y_g?
+        if linear_dyn_goal:
+            y_dot_pol[:, 2:] = -(self.y_g_avg[2:] - y_t_polar[:, 2:])**2
+        else:
+            y_dot_pol[:, 2:] = -y_t_polar[:, 2:]
+
         return y_dot_pol
 
     def hyperspherical_flow(self, y_t, y_g):
@@ -311,9 +320,9 @@ class NeuralNetwork(torch.nn.Module):
             flow: Tensor of shape [batch, state_dim]
         """
         # Normalize
-        y_g = y_g[0, ...]
-        y_t = torch.nn.functional.normalize(y_t, dim=1)  # [batch, D]
-        y_g = torch.nn.functional.normalize(y_g, dim=0)  # [D, N]
+        y_g = y_g[0, ...]  # remove first dimension ---> was used for multi-motion learning
+        y_t = torch.nn.functional.normalize(y_t, dim=1)  # [batch, Dim]
+        y_g = torch.nn.functional.normalize(y_g, dim=0)  # [Dim, N_attractor]
 
         # ------------ Greater circle distance
         # Cosine similarities: [batch, N]
@@ -334,13 +343,9 @@ class NeuralNetwork(torch.nn.Module):
         cos_theta_y_t = cos_sim.unsqueeze(-1) * y_t.unsqueeze(1)  # [B, N, D]
         y_g_exp = y_g.T.unsqueeze(0).expand(y_t.shape[0], -1, -1)  # [B, N, D]
 
-
         log_map = y_g_exp - cos_theta_y_t  # [B, N, D]
         scale = (theta / sin_theta).unsqueeze(-1)  # [B, N, 1]
         tangent_vecs = scale * log_map  # [B, N, D]
-
-        # Weights
-        # weights = torch.exp(-cos_sim).unsqueeze(-1)  # [B, N, 1]
 
         # Weighted sum
         flow = (weights * tangent_vecs).sum(dim=1)  # [B, D]
@@ -349,12 +354,15 @@ class NeuralNetwork(torch.nn.Module):
 
 
     def standard_latent_system(self, alpha, y_t, y_goals):
-        # use just the first attractors
-        # maybe i should check the dim of the attractors
+        """ single attractor lin dyn alpha*(y_g - y) """
+        # use just the first attractors -> the only one if we have a single attractor point
         return alpha*(y_goals[:, :, 0].cuda() - y_t.cuda())
 
     def multivariate_pot(self, y_t, goal_list):
-
+        """
+        Multivariate gaussian dynamic on R^n. This version is not used, but keep it as reference for the first implementation
+        pls use the function "multivariate_pot_vectorized"
+        """
         goal_list = [goal_list[:, i] for i in range(goal_list.shape[1])]
         potential = torch.zeros(y_t.shape).cuda()   # batch x state dim
         for d in range(y_t.shape[1]):   # iterate over dimension
@@ -364,6 +372,10 @@ class NeuralNetwork(torch.nn.Module):
         return potential
 
     def multivariate_pot_vectorized(self, y_t, y_g):
+        """
+        Multivariate gaussian dynamic on R^n
+        """
+
         y_g = y_g.permute(0, 2, 1)
         y_t = y_t.unsqueeze(1)
         diff = y_g - y_t
@@ -374,6 +386,7 @@ class NeuralNetwork(torch.nn.Module):
         return potential
 
     def gaussian_latent_system(self, y_t, y_g):
+        """ use as latent state the sum of univariate gaussian """
         dy_t = y_g.cuda() - y_t.unsqueeze(-1).cuda()
         f_dot = -torch.exp(-dy_t ** 2) * (-2 * dy_t)
         f_dot = torch.sum(f_dot, axis=-1)
@@ -382,25 +395,4 @@ class NeuralNetwork(torch.nn.Module):
     def well_known_2_point(self, alpha, y_t, y_goals):
         pass
 
-    def log_map_taylor_exp(x, y, eps=1e-8):
-        # x: [batch, dim]
-        # y: [batch, dim, n]
-        dot = torch.clamp((x.unsqueeze(-1) * y).sum(dim=1), -1.0, 1.0)  # [batch, n]
-        theta = torch.acos(dot)
-        sin_theta = torch.sin(theta)
 
-        # Compute scale factors using Taylor expansion for small angles
-        scale = torch.where(
-            theta < 1e-3,
-            1 + theta**2 / 6 + 7 * theta**4 / 360,
-            theta / torch.maximum(sin_theta, torch.tensor(eps, device=theta.device))
-        )
-
-        # Compute log map
-        v = scale.unsqueeze(1) * (y - dot.unsqueeze(1) * x.unsqueeze(-1))
-        return v
-    def  great_circle_distance(a, b):
-        # a: [batch, dim]
-        # b: [batch, dim, n] or [batch, dim] (broadcastable)
-        cosine = torch.clamp((a.unsqueeze(-1) * b).sum(dim=1), -0.99999, 0.99999)
-        return torch.acos(cosine)

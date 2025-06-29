@@ -56,7 +56,7 @@
 
 <p>This project uses <strong>Poetry</strong> for dependency and environment management.</p>
 
-<pre><code>git clone &lt;your_repo_link&gt; &amp;&amp; cd &lt;your_repo&gt;
+<pre><code>git clone &lt;https://github.com/gg-dema/SQUID.git&gt; your_repo &amp;&amp; cd your_repo
 poetry install
 poetry shell
 </code></pre>
@@ -76,7 +76,7 @@ python train.py --params &lt;config_file&gt;
 
 <p>Configuration files are located in <code>src/params/</code> and define the type of task:</p>
 <ul>
-  <li><strong>Discrete attractor points</strong>: Use files like <code>Discrete_Condor.py</code></li>
+  <li><strong>Discrete attractor points</strong>: Use files like <code>Discrete_Squid_{SPACE}{DIM}_1o.py</code>. Space could be <code>S</code> for spherical manifold or <code>R</code> for use euclidean metrics.</li>
   <li><strong>Continuous attractor curves</strong>: Use files prefixed with <code>shape_SHAPENAME.py</code></li>
 </ul>
 
@@ -90,7 +90,7 @@ python train.py --params &lt;config_file&gt;
       <li>A set of <strong>hard negatives</strong> (non-attractor points)</li>
     </ol>
     You can generate the hard negative set using:
-<pre><code>python src/tool/segment_image.py</code></pre>
+<pre><code>python src/tool/hard_neg_extraction.py</code></pre>
   </li>
 </ul>
 

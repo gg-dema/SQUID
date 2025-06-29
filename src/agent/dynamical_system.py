@@ -1,5 +1,5 @@
 from agent.utils.dynamical_system_operations import denormalize_derivative, euler_integration, normalize_state, denormalize_state, get_derivative_normalized_state
-
+from agent.utils.tangent_space_operations import exp_map
 import torch
 import numpy as np
 
@@ -36,9 +36,6 @@ class DynamicalSystem():
         self.y_t = {'task': None, 'latent': None}
         self.y_t_d = self.get_latent_state(x_init)
 
-        # start with the standard orientation (4 as quaternion dim)
-        #self.last_orientation_log = np.zeros((self.batch_size, 4))
-        #self.last_orientation_log[:, 0] = 1
         self.spherical_latent_space = spherical_latent_space
 
     def get_latent_state(self, x_t=None, space='task'):
@@ -143,7 +140,6 @@ class DynamicalSystem():
 
         return x_t_d, vel_t_d
 
-    #def transition(self, x_t=None, last_orientation=None, space='task', **kwargs):
     def transition(self, x_t=None, space='task', **kwargs):
         """
         Computes dynamical system one-step transition
@@ -185,14 +181,10 @@ class DynamicalSystem():
         # THIS FUNCTION IS CALL ONLY DURING EVALUATION TIMES
         states_history = [self.x_t_d.cpu().detach().numpy()]
         latent_states_history = []
-        #orientation_history = []
-        #orientation_start = np.zeros((self.x_t_d.shape[0], 4))
-        #orientation_start[..., 0] = 1
-        #orientation_history.append(orientation_start)
+
         with torch.no_grad():
             for t in range(simulation_steps - 1):
                 # Do transition
-                #transition_info = self.transition(space=space, last_orientation=orientation_history[-1], **kwargs)
                 transition_info = self.transition(space=space, **kwargs)
                 x_t = transition_info['desired state']
                 y_t = transition_info['latent state']
@@ -290,9 +282,3 @@ class DynamicalSystem():
 
 
 
-# --- Exponential map on the sphere ---
-def exp_map(x, v):
-    norm_v = torch.linalg.norm(v)
-    if norm_v < 1e-10:
-        return x  # No movement
-    return torch.cos(norm_v) * x + torch.sin(norm_v) * (v / norm_v)

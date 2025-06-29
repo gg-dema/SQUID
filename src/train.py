@@ -5,17 +5,15 @@ from simple_parsing import ArgumentParser
 from initializer import initialize_framework
 from torch.utils.tensorboard import SummaryWriter
 
+# seed if needed
 from torch import manual_seed
 from numpy.random import seed
-#seed(0)  # np
-#manual_seed(0)  # torch
 seed(3)
 manual_seed(3)
+
 # Get arguments
 parser = ArgumentParser()
-parser.add_argument('--params', type=str, default='Discrete_Condor_joint_spherical', help='')
-#parser.add_argument('--params', type=str, default='double_multivariate_goal_mappinambda', help='')
-#parser.add_argument('--params', type=str, default='oriented_condor_euler', help='')
+parser.add_argument('--params', type=str, default='Discrete_Squid_R2_1o', help='')
 parser.add_argument('--results-base-directory', type=str, default='./', help='')
 
 args = parser.parse_args()
@@ -41,7 +39,7 @@ for iteration in range(params.max_iterations + 1):
         if params.save_evaluation:
             evaluator.save_progress(params.results_path, iteration, learner.model, writer)
 
-        if params.latent_dynamic_system_type == "limit cycle" and params.workspace_dimensions == 2:
+        if params.latent_dynamic_system_type in ("limit cycle", "limit cycle avg") and params.workspace_dimensions == 2:
             print("Metrics chamfer", metrics_stab["chamfer"])
         else:
             print('Metrics sum:', metrics_acc['metrics sum'], '; Number of unsuccessful trajectories:', metrics_stab['n spurious'])
