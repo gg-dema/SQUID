@@ -82,35 +82,15 @@ python train.py --params &lt;config_file&gt;
 <p>
 The reference dynamics used in the project are the multivariate gaussian dynamic in R^n and in S^n, a "continuous curve" dynamic. All of these are define in the <code>src/agent/neural_networks.py</code> file. 
 In lower dimension, here you can have a look at the vector field generated from them: 
-<img src="img/full_latent_model.png">
+<img src="img/Latent Dynamic.png">
 </p>
 
-<h3>Planar motion in R^2: Discrete Target</h3>
-<div style="display: flex; gap: 1%; justify-content: space-between;">
-  <img src="img/3-r.jpg" style="width: 30%;"> 
-  <img src="img/3R-cyc.jpg" style="width: 30%;">
-  <img src="img/10-r2.jpg" style="width: 30%;">
-</div>
+<h3>Planar motion: </h3>
+<img src="img/experiment.png" style="width: 70%;">
 
-<h3>Planar motion in R^2: Continuous Target</h3>
-<p>2D vector fields generated usign a continuous cruve of attractions</p>
-<div style="display: flex; gap: 1%; justify-content: space-between;">
-<img src="img/star.jpg" style="width: 20%;">
-<img src="img/squirtle.jpg"  style="width: 20%;">
-<img src="img/charmender.jpg"  style="width: 20%;">
-<img src="img/bulbasaur.jpg"  style="width: 20%;">
-</div>
-
-<h3>Planar motion in S^2:</h2>
-<p> 2D vector fields generated using a spherical latent space</p>
-<div style="display: flex; gap: 1%; justify-content: space-between;">
-<img src="img/3-s.jpg" style="width: 45%">
-<img src="img/10-s2.jpg" style="width: 45%">
-</div>
-
-<h3>Motion in SE(3):</h3>
+<h3>Robotics experiement: motion in SE(3)</h3>
 <p>7-dim motion, where the state <code>q</code> is composed by 3 element for the position (<code>x, y, z</code>) and 4 element for the orientation (quaternion) (<code>alpha, beta, gamma, w</code>)</p>
-<img src="img/7-dim-motion.png">
+<img src="img/Robotic_experiment.png">
 
 
 <h2>🙏 Acknowledgments</h2>
