@@ -450,7 +450,7 @@ class DataPreprocessor:
                 center, radius = self.interpolate_circle(goals_training)
             else:
                 # center, radius = np.load("datasets/circle.npy")
-                radius = np.array([0.7])
+                radius = np.array([0.3])
                 center = np.zeros(self.dim_workspace)
 
             shapes = self.generate_hard_negative_circle(center, radius, goals_training)
@@ -520,8 +520,31 @@ class DataPreprocessor:
             center = goals[0, :, :].mean(0)
             radius = np.linalg.norm(goals[0, 0, :] - center)
         elif self.n_attractors == 3:
-            goals = 0
-            ...
+
+            a, b, c = goals[0, 0, :], goals[0, 1, :], goals[0, 2, :]
+            a_size = np.linalg.norm(b-c)
+            b_size = np.linalg.norm(a-c)
+            c_size = np.linalg.norm(a-b)
+            semi_perimeter = (a_size+ b_size + c_size)/ 2
+            area = np.sqrt(semi_perimeter*(semi_perimeter-a_size)*(semi_perimeter-b_size)*(semi_perimeter-c_size))
+            radius = (a_size * b_size * c_size) / (4 * area + 1e-8)  # small epsilon to avoid division by zero
+            # Compute circumcenter using perpendicular bisectors
+            def perp_bisector(p1, p2):
+                mid = (p1 + p2) / 2
+                dir_vec = p2 - p1
+                perp_vec = np.array([-dir_vec[1], dir_vec[0]])
+                return mid, perp_vec
+
+            mid1, dir1 = perp_bisector(a, b)
+            mid2, dir2 = perp_bisector(b, c)
+
+            # Solve for intersection (center of circle)
+            # mid1 + t1 * dir1 = mid2 + t2 * dir2  => 2 equations, 2 unknowns
+            M = np.stack([dir1, -dir2], axis=1)  # shape (2, 2)
+            b_vec = mid2 - mid1
+            t = np.linalg.solve(M, b_vec)
+            center = mid1 + t[0] * dir1
+
         else:
             raise Exception("number of attractor and technique for circle generation are not compatible ")
         return center, radius
