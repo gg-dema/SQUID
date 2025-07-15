@@ -27,7 +27,7 @@ def evaluator_init(learner, data, params, verbose=True):
     elif params.workspace_dimensions == 3:
         return Evaluate3D(learner, data, params, verbose)
     elif params.workspace_dimensions == 7:
-        if params.joint_space:
+        if params.joint_space and params.pose_tracking == 'sphere':
             return EvaluateCircularND(learner, data, params, verbose)
         elif params.pose_tracking == "SE3":
             return Evaluate7D_frame(learner, data, params, verbose)
