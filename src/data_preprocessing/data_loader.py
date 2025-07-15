@@ -2,7 +2,7 @@ from datasets.dataset_keys import (
     LASA, LAIR,
     optitrack, interpolation, kuka,
     joint_space, multi_attractors,
-    cycle, eval_dataset
+    cycle, eval_dataset, franka
 )
 
 from spatialmath import SO3, UnitQuaternion
@@ -62,6 +62,8 @@ def get_dataset_primitives_names(dataset_name):
         dataset_primitives_names = multi_attractors
     elif dataset_name == 'eval_dataset':
         dataset_primitives_names = eval_dataset
+    elif dataset_name == 'franka_npz':
+        dataset_primitives_names = franka
     else:
         raise NameError('Dataset %s does not exist' % dataset_name)
 
@@ -97,19 +99,78 @@ def get_data_loader(dataset_name, dim_manifold):
     ]
     if dataset_name == 'LASA':
         data_loader = load_LASA
+
     elif dataset_name in dataset_in_numpy_format:
         data_loader = load_numpy_file
+
     elif dataset_name == 'joint_space':
         data_loader = load_from_dict
-    elif dataset_name == 'kuka' and dim_manifold == 3:
-        data_loader = load_R3
-    elif dataset_name == 'kuka' and dim_manifold == 7:
-        data_loader = load_R3S3
+
+    elif dim_manifold == 3:
+        if dataset_name == 'kuka':
+            data_loader = load_R3
+        elif dataset_name == "franka_npz":
+            data_loader = load_npz_file_R3
+
+    elif dim_manifold == 7:
+        if dataset_name == "kuka":
+            data_loader = load_R3S3
+        elif dataset_name == "franka_npz":
+            data_loader = load_npz_file_R3S3
+
     else:
         raise NameError('Dataset %s does not exist' % dataset_name)
 
     return data_loader
+def load_npz_file_R3(dataset_dir, demonstrations_names):
 
+    dt, primitive_id, demos = [], [], []
+    dt_x = 1/200  # fixed because missing in the datasets
+
+    for demos_id in range(len(demonstrations_names)):
+        for i, file in enumerate(os.listdir(dataset_dir+demonstrations_names[demos_id])):
+            path = os.path.join(dataset_dir, demonstrations_names[demos_id], file)
+            dict_data = np.load(path)
+            traj_xyz = dict_data['traj']
+
+            demos.append(traj_xyz)
+            primitive_id.append(demos_id)
+            dt.append(np.ones(traj_xyz.shape[1]) * dt_x)
+
+    return demos, primitive_id, dt
+def load_npz_file_R3S3(dataset_dir, demonstrations_names):
+
+    dt, primitive_id, demos = [], [], []
+    dt_x = 1/150  # fixed because missing in the datasets
+
+    for demos_id in range(len(demonstrations_names)):
+        for i, file in enumerate(os.listdir(dataset_dir+demonstrations_names[demos_id])):
+            path = os.path.join(dataset_dir, demonstrations_names[demos_id], file)
+            dict_data = np.load(path)
+            traj_xyz = dict_data['traj']
+            traj_orientation = dict_data['ori']  # w z x y
+            quat_orientation = []
+            prev_quat = None
+
+            # iterate over the traj and check for the flip:
+            for row_q in traj_orientation.T:
+                quat = UnitQuaternion(row_q)
+                if prev_quat is None:
+                    prev_quat = quat
+
+                if np.linalg.norm(quat - prev_quat) > 0.5:
+                    quat *= -1
+
+                quat_orientation.append(quat)
+                prev_quat = quat
+
+            quat_orientation = np.stack([quat.A for quat in quat_orientation]).T
+            demo = np.concatenate([traj_xyz, quat_orientation], 0)
+            demos.append(demo)
+            primitive_id.append(demos_id)
+            dt.append(np.ones(traj_xyz.shape[1]) * dt_x)
+
+    return demos, primitive_id, dt
 
 def load_LASA(dataset_dir, demonstrations_names):
     """

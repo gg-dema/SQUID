@@ -97,7 +97,7 @@ class NeuralNetwork(torch.nn.Module):
 
         if self.latent_system_dynamic_type in ("standard", "gaussian", "gravity"):
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
-        elif self.latent_system_dynamic_type in ("multivariate", "multivariate_s2"):            # multiple gain for each equation of the latent state ---> unbalance behaviour, keep for now
+        elif self.latent_system_dynamic_type in ("multivariate", "multivariate_s2", "torus"):            # multiple gain for each equation of the latent state ---> unbalance behaviour, keep for now
             # a single alpha parameters for  (if use it back, change the dim of alpha --> look at multivariate dynamics)
             # return torch.nn.Linear(self.latent_space_dim, latent_input_size*self.n_attractors)
             return torch.nn.Linear(self.latent_space_dim, latent_input_size)
@@ -116,7 +116,6 @@ class NeuralNetwork(torch.nn.Module):
         # if single attractor, expand the dimension for match calc
         if goals.ndim == 2:
             goals = goals.unsqueeze(0)
-
 
         for i in range(self.n_primitives):
             for attractor_id in range(self.n_attractors):
@@ -263,6 +262,9 @@ class NeuralNetwork(torch.nn.Module):
         elif self.latent_system_dynamic_type == "multivariate_s2":
             dy_t = alpha * self.hyperspherical_flow(y_t, y_goals)
 
+        elif self.latent_system_dynamic_type == "torus":
+            dy_t = -alpha * self.hyperTorus_flow(y_t, y_goals)
+
         elif self.latent_system_dynamic_type == "gaussian":
             dy_t = alpha * self.gaussian_latent_system(y_t, y_goals)
 
@@ -282,7 +284,6 @@ class NeuralNetwork(torch.nn.Module):
         else:
             raise NameError(f"{self.latent_system_dynamic_type} is not valid")
         return dy_t
-
 
     def limit_cycle(self, y_t, alpha, beta, linear_dyn_goal):
         y_t_polar = polar.euclidean_to_polar(y_t)
@@ -305,6 +306,50 @@ class NeuralNetwork(torch.nn.Module):
             y_dot_pol[:, 2:] = -y_t_polar[:, 2:]
 
         return y_dot_pol
+
+
+    def hyperTorus_flow(self, y_t, y_g):
+
+        """
+        x: [B, D]
+        Returns: dx/dt [B, D]
+        """
+        self.D = y_g.shape[1]  # D should be 300 based on your error
+
+        y_t_exp = y_t[:, None, :]                 # [B, 1, D]
+        goals_exp = y_g[0, :, :].unsqueeze(0)               # [1, n_goals, D]
+
+        # Create pi as a scalar on the correct device
+        pi = torch.tensor(torch.pi, device=y_t.device)
+
+        # Delta calculation with proper broadcasting
+        delta = (y_t_exp - goals_exp.permute(0, 2, 1) + pi) % (2 * pi) - pi  # [B, n_goals, D]
+
+        # Rest of your code remains the same
+        dist_sq = (2 * torch.sin(delta / 2)).pow(2).mean(dim=-1)  # [B, n_goals]
+        weights = torch.softmax(-dist_sq / (2 * self.sigma**2), dim=1)  # [B, n_goals]
+        dxdt = (weights[:, :, None] * delta).sum(dim=1)  # [B, D]
+
+        return dxdt
+
+
+
+
+    def hyperspherical_flow_test(self, y_t, y_g):
+        y_g = y_g.permute(0, 2, 1)
+        y_t = y_t.unsqueeze(1)
+        diff = y_g - y_t
+        square_diff = diff**2
+        exp_arg = -torch.sum((square_diff/self.sigma**2), dim=2)
+        exp_vals = torch.exp(exp_arg)
+        potential = torch.sum(exp_vals.unsqueeze(-1) * diff * 2, dim=1)
+
+        # projection to the tangent space:
+        # ----------------
+        # batched dot product:
+        dot_weight = torch.einsum('bi, bi -> b', potential, y_t.squeeze(1))
+        dot_weight = dot_weight.unsqueeze(1)  # [280 - 280, 1]potential -= torch.dot(potential, y_t) * y_t
+        return potential - (dot_weight * y_t.squeeze(1))
 
     def hyperspherical_flow(self, y_t, y_g):
         """
@@ -351,7 +396,56 @@ class NeuralNetwork(torch.nn.Module):
         flow = (weights * tangent_vecs).sum(dim=1)  # [B, D]
 
         return flow
+    def torus_flow(self, y_t, y_g, sigma=0.7, min_speed=1e-3):
+        """
+        Compute the tangent-space dynamics on an N-dimensional torus.
 
+        Args:
+            y_t: Tensor of shape [B, D]         - current batch of torus points
+            y_g: Tensor of shape [B, D, N]      - goal attractors per batch element
+            sigma: float                        - Gaussian field width
+            min_speed: float                    - minimum flow speed to avoid stagnation
+
+        Returns:
+            flow: Tensor of shape [B, D]        - tangent vector field on the torus
+        """
+        # --- Log map: minimal angular difference (modulo 2π) ---
+        # [B, D, N] = ([B, D, N] - [B, D, 1]) % 2π
+        diff = (y_g - y_t.unsqueeze(-1) + torch.pi) % (2 * torch.pi) - torch.pi  # [B, D, N]
+
+        # --- Norm of log vectors ---
+        dist = torch.norm(diff, dim=1)  # [B, N]
+
+        # --- Safe direction normalization ---
+        eps = 1e-8
+        direction = diff / (dist.unsqueeze(1) + eps)  # [B, D, N]
+
+        # --- Gaussian weighting ---
+        weight = torch.exp(-(dist**2) / sigma**2)  # [B, N]
+        speed = (2 / sigma**2) * weight + min_speed  # [B, N]
+
+        # --- Compute final flow as weighted sum of directions ---
+        flow = (speed.unsqueeze(1) * direction).sum(dim=-1)  # [B, D]
+
+        return flow
+    def torus_log_map(self, y_t, y_g):
+        """
+        Torus log map for batched data.
+
+        Args:
+            y_t: Tensor [B, D]           - current states (B=batch, D=dim)
+            y_g: Tensor [B, D, N_goal]   - goal states (per-sample, per-dim)
+
+        Returns:
+            log_map: Tensor [B, D, N_goal] - tangent vectors
+        """
+        # Ensure shapes are compatible
+        # y_t: [B, D] -> [B, D, 1] to broadcast
+        diff = y_g - y_t.unsqueeze(-1)  # [B, D, N]
+
+        # Wrap into [-pi, pi)
+        log_map = (diff + torch.pi) % (2 * torch.pi) - torch.pi
+        return log_map
 
     def standard_latent_system(self, alpha, y_t, y_goals):
         """ single attractor lin dyn alpha*(y_g - y) """

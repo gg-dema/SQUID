@@ -10,7 +10,8 @@ from agent.utils.ranking_losses import (
     ContrastiveLossSphericalSpace,
     ContrastiveLossNorm,
     TripletAngleLoss,
-    great_circle_distance
+    great_circle_distance,
+    ManifoldBased_ContrastiveLoss
 )
 from agent.dynamical_system import DynamicalSystem
 from agent.utils.dynamical_system_operations import normalize_state
@@ -104,13 +105,15 @@ class ContrastiveImitation:
 
         elif self.stabilization_loss == 'contrastive':
             if self.spherical_latent_space:
+                self.contrastive_loss = ManifoldBased_ContrastiveLoss(margin=params.contrastive_margin,
+                                                                      latent_manifold=self.latent_dyn_type)
+
                 self.contrastive_loss = ContrastiveLossSphericalSpace(margin=params.contrastive_margin)
             else:
                 self.contrastive_loss = ContrastiveLoss(margin=params.contrastive_margin)
 
         if self.attractor_shape:
             self.contrastive_norm_loss = ContrastiveLossNorm(margin=params.contrastive_norm_margin)
-
         # Initialize Neural Network
         self.model = NeuralNetwork(dim_state=self.dim_state,
                                    dynamical_system_order=self.dynamical_system_order,
@@ -163,7 +166,8 @@ class ContrastiveImitation:
                                            delta_t=delta_t,
                                            x_min=self.params_dynamical_system['x min'],
                                            x_max=self.params_dynamical_system['x max'],
-                                           spherical_latent_space=self.spherical_latent_space)
+                                           spherical_latent_space=self.spherical_latent_space,
+                                           latent_dyn_type=self.latent_dyn_type)
 
         return dynamical_system
 
@@ -250,16 +254,8 @@ class ContrastiveImitation:
         if self.n_attractors == 2:
             reference_goals = torch.ones_like(goals_latent_space[0, :, :])
             reference_goals[1, :] *= -1
-        elif self.n_attractors == 3:
-            reference_goals = torch.ones_like(goals_latent_space[0, :, :])
-            reference_goals[1, :] *= -0.7
-            reference_goals[2, :] *= 0.2
 
-            # if we learn a manifold representation, each element should have a norm equals to 1
-            if self.spherical_latent_space:
-                reference_goals = torch.nn.functionl.normalize(reference_goals)
-
-        elif self.n_attractors > 3:
+        elif self.n_attractors > 2:
             if self.no_goals_set_yet:
                 # we can just sample some goal point. If we didn't have any fixed representation yet, here we sample the latent space
                 self.reference_goals = torch.rand(goals_latent_space[0, :, :].shape).cuda()

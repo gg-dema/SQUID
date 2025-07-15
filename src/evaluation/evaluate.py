@@ -406,7 +406,6 @@ class Evaluate():
                 if self.diffeo_quali_eval:
                     self.compute_diffeo_quali_eval(sim_results, sim_results_latent, primitive_id, iteration)
 
-
         return metrics_acc, metrics_stab
 
     def save_progress(self, save_path, i, model, writer):

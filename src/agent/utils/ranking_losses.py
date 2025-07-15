@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from agent.utils.tangent_space_operations import torus_log_map
+
 """
 Source: https://github.com/adambielski/siamese-triplet/blob/master/losses.py
 """
@@ -102,3 +104,36 @@ class TripletLoss(nn.Module):
             distance_negative[distance_positive_negative < distance_negative] = distance_positive_negative[distance_positive_negative < distance_negative]
         losses = F.relu(distance_positive - distance_negative + self.margin)
         return losses.mean() if size_average else losses.sum()
+
+class ManifoldBased_ContrastiveLoss(nn.Module):
+    def __init__(self, margin, latent_manifold):
+        super().__init__()
+
+        # contrastive params:
+        self.margin = margin
+
+        # manifold setting:
+        self.latent_manifold = latent_manifold
+        self.distance_metrics = self.init_distance_metrics()
+
+    def init_distance_metrics(self):
+
+        # HYPER-SPHERICAL MANIFOLD
+        if self.latent_manifold == "multivariate_s2" :
+            return great_circle_distance
+
+        elif self.latent_manifold == "torus":
+            #return dist_torus_log_map
+            return torus_log_map
+        else:
+            raise(NameError, f"the latent manifold {self.latent_manifold} do not exist")
+
+    def forward(self, output1, output2, target, size_average=True):
+
+        distances = self.distances(output2, output1)
+        losses = 0.5 * (
+            target.float() * distances +
+            (1 - target).float() * F.relu(self.margin - (distances + self.eps).sqrt()).pow(2)
+        )
+        return losses.mean() if size_average else losses.sum()
+

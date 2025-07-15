@@ -354,13 +354,13 @@ class DataPreprocessor:
         u = u / np.linalg.norm(u)
 
         # The circle lies in the plane spanned by u and d
-        theta = np.linspace(0, 2 * np.pi, 1200)
+        theta = np.linspace(0, 2 * np.pi, 1000)
         circle = c[:, None] + r * (np.cos(theta) * u[:, None] + np.sin(theta) * d[:, None])
 
         # TOROUS : hard negative
         # Torus parameters
-        torus_minor_radius = 0.1  # Radius of the torus tube
-        num_points = 1200 # Number of points to sample
+        torus_minor_radius = 0.2  # Radius of the torus tube
+        num_points = 2000 # Number of points to sample
 
         # Generate random points inside the torus
         theta_t = np.random.uniform(0, 2*np.pi, num_points)  # Angle around the circle
@@ -388,6 +388,49 @@ class DataPreprocessor:
 
         return (circle.T, torus_points.T)
 
+    def generate_3d_torus_and_hard_negative(self, goals_training, num_points=5000):
+        p1 = goals_training[0, 0, :]
+        p2 = goals_training[0, 1, :]
+        c = (p1 + p2) / 2
+
+        # Circle radius and direction
+        r = np.linalg.norm(p1 - c)
+        d = (p1 - c) / r
+
+        # Arbitrary orthogonal vector
+        a = np.array([1, 0, 0])
+        if np.abs(np.dot(a, d)) > 0.9:
+            a = np.array([0, 1, 0])
+
+        u = np.cross(a, d)
+        u /= np.linalg.norm(u)
+
+        # Circle for reference
+        theta = np.linspace(0, 2 * np.pi, 100)
+        circle = c[:, None] + r * (np.cos(theta) * u[:, None] + np.sin(theta) * d[:, None])
+
+        def sample_shell(r_min, r_max):
+            theta_t = np.random.uniform(0, 2*np.pi, num_points)
+            phi = np.random.uniform(0, 2*np.pi, num_points)
+            radial_offset = np.random.uniform(r_min, r_max, num_points)
+
+            tangent = -np.sin(theta_t) * u[:, None] + np.cos(theta_t) * d[:, None]
+            normal = np.cos(theta_t) * u[:, None] + np.sin(theta_t) * d[:, None]
+            binormal = np.cross(tangent.T, normal.T).T
+            binormal = binormal / np.linalg.norm(binormal, axis=0)
+
+            shell_points = (
+                c[:, None] +
+                r * (np.cos(theta_t) * u[:, None] + np.sin(theta_t) * d[:, None]) +
+                radial_offset * np.cos(phi) * normal +
+                radial_offset * np.sin(phi) * binormal
+            )
+            return shell_points.T
+
+        inner_shell = sample_shell(0.0, 0.04)
+        outer_shell = sample_shell(0.05, 0.2)
+
+        return inner_shell, outer_shell
     def get_features_shapes(self, goals_training):
 
         if self.shaped_attractors is None:
@@ -437,7 +480,7 @@ class DataPreprocessor:
 
         elif self.shaped_attractors.startswith("circle"):
             if self.dim_workspace == 3:
-                return self.generate_3d_circle_and_hard_negative(goals_training)
+                return self.generate_3d_torus_and_hard_negative(goals_training)
 
             # 4 option:
             #       1) interpolate 2 point : center at the middle of them
@@ -477,7 +520,6 @@ class DataPreprocessor:
             shapes = (shape, hard_negative)
 
             return shapes
-
 
     def generate_hard_negative_circle(self, center, radius, goals):
         n_points = 500

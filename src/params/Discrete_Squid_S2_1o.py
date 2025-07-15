@@ -5,17 +5,17 @@ from dataclasses import dataclass
 class Params:
     """ General parameters """
     dataset_name: str = 'multi_attractors'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space, multi_attractors, kuka
-    results_path: str = 'results/s2/imit-'
+    results_path: str = 'results/manifold_meeting/s2/stab-'
     multi_motion: bool = False                           # true when learning multiple motions together : always false for multi-goal
-    selected_primitives_ids: str = '10'                   # id number from dataset_keys.py, e.g., '2' or '4,0,6'
+    selected_primitives_ids: str = '5'  # '10'                   # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 2                        # dimensionality of the data
     spherical_latent_space: bool = True                 # define the distance function used in the latent space --> euclidean space or spherical manifold
     saturate_out_of_boundaries_transitions: bool = True  # True to enforce positively invariant set
     dynamical_system_order: int = 1                      # options: 1, 2
 
     """ Multi Attractors """
-    n_attractors: int = 9                                # n attractors
-    sigma = 0.35                                         # dev std for the multivariate (R^n and S^n) gaussian
+    n_attractors: int = 3 # 9                                # n attractors
+    sigma = 0.29                                         # dev std for the multivariate (R^n and S^n) gaussian
     latent_dynamic_system_type: str = "multivariate_s2"  # option: standard, gaussian, well_known, multivariate, multivariate_s2, limit_cycle
     shaped_attractors_form: str = None
 
@@ -35,7 +35,7 @@ class Params:
     weight_decay: float = 1e-07                     # AdamW weight decay
 
     """ Contrastive Imitation """
-    imitation_loss_weight: float = 1.7              # imitation loss weight
+    imitation_loss_weight: float = 0 #1.7              # imitation loss weight
     stabilization_loss_weight: float = 0.4          # stability loss weight
     goal_mapping_loss_weight: float = 0.00          # weight of the goal mapping loss
     goal_mapping_decreasing_weight: float = 0.0     # decay rate of the goal mapping loss
@@ -43,9 +43,9 @@ class Params:
     cycle_loss_weight: float = 0.0                  # weight of the Constrastive-Norm-Loss
     cycle_orientation_loss_weight: float = 0.0      # weight of the orientation loss
     imitation_window_size: int = 8                  # imitation window size
-    stabilization_window_size: int = 6              # stability window size
+    stabilization_window_size: int = 4              # stability window size
     stabilization_loss: str = 'contrastive'         # options: contrastive, triplet
-    contrastive_margin: float = 0.00004             # contrastive loss margin
+    contrastive_margin: float = 0.004             # contrastive loss margin
     contrastive_norm_margin: float = 0.0            # contrastive norm loss margin
     triplet_margin: float = 0.00                    # triplet loss margin
     interpolation_sigma: float = 0.8  # percentage of points sampled in demonstrations space when multi-model learning
@@ -53,7 +53,7 @@ class Params:
     """ Training """
     train: bool = True              # true when training
     load_model: bool = False        # true to load previously trained model
-    max_iterations: int = 41000     # maximum number of training iterations
+    max_iterations: int = 20_000     # maximum number of training iterations
 
     """ Preprocessing """
     spline_sample_type: str = 'from data'  # resample from spline type, options: from data, from data resample, evenly spaced

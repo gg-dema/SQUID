@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class Params:
     """ General parameters """
     dataset_name: str = 'multi_attractors'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space, multi_attractors, kuka
-    results_path: str = 'results/post_laurea/discrete_multi_attractor/stab-'
+    results_path: str = 'results/manifold_meeting/discrete_multi_attractor/imit-'
     multi_motion: bool = False                        # true when learning multiple motions together : always false for multi-goal
     selected_primitives_ids: str = '5'                # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 2                     # dimensionality of the data
@@ -35,7 +35,7 @@ class Params:
     weight_decay: float = 0.00001                   # AdamW weight decay
 
     """ Contrastive Imitation """
-    imitation_loss_weight: float = 0.0              # imitation loss weight
+    imitation_loss_weight: float = 1.5              # imitation loss weight
     stabilization_loss_weight: float = 0.9          # stability loss weight
     goal_mapping_loss_weight: float = 0.05          # weight of the goal mapping loss
     goal_mapping_decreasing_weight: float = 0.992   # decay rate of the goal mapping loss

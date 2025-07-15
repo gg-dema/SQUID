@@ -1,5 +1,5 @@
 from agent.utils.dynamical_system_operations import denormalize_derivative, euler_integration, normalize_state, denormalize_state, get_derivative_normalized_state
-from agent.utils.tangent_space_operations import exp_map
+from agent.utils.tangent_space_operations import exp_map, torus_exp_map
 import torch
 import numpy as np
 
@@ -9,7 +9,7 @@ class DynamicalSystem():
     Dynamical System that uses Neural Network trained with Contrastive Imitation
     """
     def __init__(self, x_init, order, min_state_derivative, max_state_derivative, saturate_transition, primitive_type,
-                 model, dim_state, delta_t, x_min, x_max, spherical_latent_space):
+                 model, dim_state, delta_t, x_min, x_max, spherical_latent_space, latent_dyn_type):
         # Initialize NN model
         self.model = model
 
@@ -37,7 +37,7 @@ class DynamicalSystem():
         self.y_t_d = self.get_latent_state(x_init)
 
         self.spherical_latent_space = spherical_latent_space
-
+        self.latent_dyn_type = latent_dyn_type
     def get_latent_state(self, x_t=None, space='task'):
         """
         Obtains current latent state by either mapping task state or from previous latent system transition
@@ -69,7 +69,10 @@ class DynamicalSystem():
         # Integrate
         if self.spherical_latent_space:
             # use exponential map for come back to the original manifold
-            self.y_t_d = exp_map(y_t, self.delta_t * dy_t_d)
+            if self.latent_dyn_type == 'multivariate_s2':
+                self.y_t_d = exp_map(y_t, self.delta_t * dy_t_d)
+            elif self.latent_dyn_type == "torus":
+                self.y_t_d = torus_exp_map(y_t, self.delta_t * dy_t_d)
         else:
             # standard euler integration
             self.y_t_d = euler_integration(y_t, dy_t_d, self.delta_t)

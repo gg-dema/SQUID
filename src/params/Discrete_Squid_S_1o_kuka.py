@@ -5,7 +5,7 @@ import numpy as np
 class Params:
     """ General parameters """
     dataset_name: str = 'kuka'  # selects dataset, options: LASA, LAIR, optitrack, interpolation, joint_space, multi_attractors, kuka
-    results_path: str = 'results/s2/robot_exp'
+    results_path: str = 'results/robot_exp/s2/kuka/imit-'
     multi_motion: bool = False                        # true when learning multiple motions together : always false for multi-goal
     selected_primitives_ids: str = '2'                # id number from dataset_keys.py, e.g., '2' or '4,0,6'
     workspace_dimensions: int = 7                     # dimensionality of the data
@@ -86,6 +86,8 @@ class Params:
     evaluation_samples_length: int = 100  # integration steps skipped in quantitative evaluation for faster evaluation
     show_plotly = True
     save_all_models = False               # save any model generated : if False save just the model with the best imitation statistics
+    pose_tracking = "SE3"  # Option: Component-wise, SE3 --> sphere not testing yet
+
     """ Hyperparameter Optimization """
     gamma_objective_1 = 0.48  # weight 1 for hyperparameter evaluation
     gamma_objective_2 = 3.5  # weight 2 for hyperparameter evaluation

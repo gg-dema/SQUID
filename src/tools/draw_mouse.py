@@ -68,7 +68,7 @@ canvas.trajectories = []
 canvas.start = False
 canvas.sampling_times = []
 
-name = 'crossed_trajectory_circle'
+name = 'circle_interpolation_3_goal'
 
 #draw_background_points(path="../datasets/star.npy")
 

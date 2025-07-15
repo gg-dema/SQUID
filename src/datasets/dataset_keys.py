@@ -73,7 +73,8 @@ multi_attractors = ['v0',  # 1 single attractor, done for testing if the dataset
                    'v12',
                    'v13', # crossed trajectory
                    'v14', # crossed and circle
-                   'v15'
+                   'v15',
+                   'v16' # version with 3 attractor for circle interpolation
         ]
 
 
@@ -96,4 +97,13 @@ cycle = [
     'limit_cycle',
     'strange_cycle',
     'otto'
+]
+
+franka = [
+    'side_grab',
+    'top_grab',
+    'few_side',
+    '2-traj-side',
+    '2-traj-top',
+    'few_top'
 ]
